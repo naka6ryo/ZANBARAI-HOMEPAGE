@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZANBARAI CHRONICLE // SYSTEM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Zen+Old+Mincho&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Palette */
+            --accent: #ff2a2a;
+            --accent-dim: rgba(255, 42, 42, 0.3);
+            --accent-glow: rgba(255, 42, 42, 0.6);
+            --text-main: #0a0a0a;
+            --text-dim: #555;
+            --bg-color: #e0e0e0;
+            --screen-bg: #f0f0f0;
+            --grid-line: rgba(0, 0, 0, 0.05);
+            
+            /* Fonts */
+            --font-ui: 'Share Tech Mono', monospace;
+            --font-jp: 'Zen Old Mincho', serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            
+            /* 3D Perspective Setup */
+            perspective: 1000px;
+            transform-style: preserve-3d;
+        }
+
+        /* --- Stronger CRT Effects --- */
+        .screen-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        /* Intense Scanlines */
+        .screen-overlay::before {
+            content: " "; display: block; position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 2;
+            opacity: 0.6;
+        }
+        /* Vignette & Noise Texture */
+        .screen-overlay::after {
+            content: " "; display: block; position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.4) 100%);
+            z-index: 2;
+            animation: noise 0.2s infinite;
+        }
+
+        /* --- Boot Sequence Overlay (White Theme) --- */
+        .boot-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #fafafa; /* White Background */
+            color: var(--text-main); /* Dark Text */
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-ui);
+            padding: 20px;
+        }
+        .boot-screen.hidden {
+            display: none;
+        }
+
+        .boot-container {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .boot-logo {
+            font-family: var(--font-jp);
+            font-size: 3rem;
+            margin-bottom: 20px;
+            letter-spacing: 0.2em;
+            color: var(--text-main);
+            text-shadow: 2px 0 var(--accent-dim), -2px 0 rgba(0,255,255,0.3);
+            animation: textGlitch 0.5s infinite;
+        }
+
+        .boot-status {
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-align: left;
+            border-bottom: 1px dashed var(--accent);
+            padding-bottom: 5px;
+            color: var(--accent);
+        }
+
+        .boot-progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #ddd; /* Light gray track */
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .boot-progress-fill {
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            background: var(--accent);
+            width: 0%;
+            box-shadow: 0 0 10px var(--accent-dim);
+        }
+
+        .boot-log {
+            font-size: 0.7rem;
+            text-align: left;
+            color: var(--text-dim);
+            height: 80px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column-reverse; /* Bottom up */
+            font-family: monospace;
+            line-height: 1.4;
+        }
+        .boot-log span {
+            display: block;
+        }
+
+        /* Start Button (Hidden initially) */
+        .boot-start-btn {
+            display: none;
+            margin-top: 20px;
+            background: transparent;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+            padding: 15px 40px;
+            font-family: var(--font-ui);
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            animation: pulse-red 1.5s infinite;
+            font-weight: bold;
+        }
+        .boot-start-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 42, 42, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 42, 42, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 42, 42, 0); }
+        }
+
+        /* --- Main Monitor Container --- */
+        .monitor-frame {
+            width: 95%;
+            max-width: 1000px;
+            height: 85vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
+            opacity: 0; /* Hidden initially */
+        }
+        .monitor-frame.visible {
+            opacity: 1;
+        }
+
+        /* --- Header --- */
+        .monitor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 10px;
+            border-bottom: 3px solid var(--accent);
+            margin-bottom: 15px;
+            transform: translateZ(30px);
+            text-shadow: 2px 0 var(--accent-dim), -2px 0 cyan;
+        }
+        .header-status { font-size: 0.8rem; color: var(--text-dim); font-weight: bold; }
+        .header-title h1 {
+            font-family: var(--font-jp);
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin: 0;
+            line-height: 1;
+            /* Glitch Effect */
+            animation: textGlitch 3s infinite alternate;
+        }
+
+        /* --- Language Switch Button Styling --- */
+        .lang-toggle {
+            margin-top: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            border: 2px solid var(--accent);
+            padding: 4px 12px;
+            background: rgba(255, 255, 255, 0.9);
+            font-family: var(--font-ui);
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 1px;
+        }
+
+        .lang-toggle:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 var(--accent-dim);
+            background: var(--accent);
+            color: white;
+        }
+
+        .lang-toggle:active {
+            transform: translate(0, 0);
+            box-shadow: 2px 2px 0 var(--accent-dim);
+        }
+
+        /* Blinking indicator dot */
+        .lang-toggle::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            margin-right: 8px;
+            animation: blink-fast 1s steps(2) infinite;
+        }
+
+        .lang-toggle:hover::before {
+            background: #fff; /* White dot on hover */
+        }
+
+        /* Target the dynamic text span */
+        .lang-toggle #lang-display {
+            color: var(--accent);
+            font-weight: 900;
+            margin-left: 5px;
+        }
+
+        .lang-toggle:hover #lang-display {
+            color: #fff;
+        }
+
+        @keyframes blink-fast {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* --- Screen Area (Borderless) --- */
+        .crt-screen {
+            flex-grow: 1;
+            background: var(--screen-bg);
+            border: none; 
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 60px rgba(0,0,0,0.2);
+            
+            /* Grid Background */
+            background-image: 
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 30px 30px;
+
+            transform: translateZ(0px);
+            transform-style: preserve-3d;
+        }
+
+        /* Content Container */
+        .content-scroller {
+            height: 100%;
+            overflow-y: auto;
+            padding-right: 15px;
+            transform: translateZ(10px); 
+        }
+        
+        .content-scroller::-webkit-scrollbar { width: 8px; }
+        .content-scroller::-webkit-scrollbar-track { background: transparent; }
+        .content-scroller::-webkit-scrollbar-thumb { background: var(--accent); border: 2px solid var(--screen-bg); }
+
+        /* --- Overview Grid Layout (Split View) --- */
+        .overview-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (min-width: 900px) {
+            .overview-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 30px;
+                align-items: center;
+                height: 100%;
+            }
+            .overview-text {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            .video-box {
+                margin: 0; /* Remove default margin in grid */
+                width: 100%;
+            }
+            /* Adjust catch copy for grid layout */
+            .overview-text p.catch-copy {
+                margin: 0 0 20px 0 !important;
+            }
+        }
+
+        /* --- Flash Transition Overlay (RED TINTED) --- */
+        .flash-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #ffaaaa; /* Red tinted white */
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            mix-blend-mode: hard-light; /* Stronger blending */
+        }
+        
+        /* The Flash Animation */
+        .flash-active {
+            animation: flash-bang 0.4s ease-out forwards;
+        }
+
+        @keyframes flash-bang {
+            0% { opacity: 0; background: #ff0000; }
+            10% { opacity: 1; background: #ffcccc; } 
+            100% { opacity: 0; }
+        }
+
+        /* --- Delayed Color & Stabilization Effect (RED + FLICKER) --- */
+        .analog-stabilize {
+            animation: analog-warmup 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        @keyframes analog-warmup {
+            0% { 
+                /* RED PHASE: High saturation red, high contrast, blurry */
+                filter: brightness(1.2) sepia(100%) hue-rotate(-50deg) saturate(500%) blur(5px) contrast(150%);
+                opacity: 0;
+                transform: scale(1.05);
+                text-shadow: 10px 0 rgba(255,0,0,0.8), -10px 0 rgba(0,255,255,0.8);
+            }
+            10% {
+                /* First Flash */
+                opacity: 1;
+                filter: brightness(1.5) sepia(100%) hue-rotate(-50deg) saturate(400%) blur(3px);
+            }
+            15% { opacity: 0.2; } /* Flicker OFF */
+            20% { 
+                opacity: 1;
+                filter: brightness(1.3) sepia(80%) hue-rotate(-50deg) saturate(300%) blur(2px);
+            }
+            30% { opacity: 0.5; } /* Flicker DIM */
+            40% { 
+                /* Returning to normal */
+                opacity: 1;
+                filter: brightness(1.1) sepia(40%) hue-rotate(-30deg) saturate(200%) blur(1px);
+            }
+            60% {
+                filter: brightness(1.05) sepia(20%) hue-rotate(-10deg) saturate(150%) blur(0.5px);
+                text-shadow: 2px 0 rgba(255,0,0,0.4), -2px 0 rgba(0,255,255,0.4);
+            }
+            100% { 
+                /* Stable */
+                filter: brightness(1) sepia(0%) saturate(100%) blur(0);
+                opacity: 1;
+                transform: scale(1);
+                text-shadow: 1px 0 rgba(255,0,0,0.3), -1px 0 rgba(0,255,255,0.3);
+            }
+        }
+
+        /* --- Sections --- */
+        section { display: none; }
+        section.active { display: block; }
+
+        h2 {
+            font-family: var(--font-jp);
+            font-size: 2rem;
+            color: var(--text-main);
+            border-left: 8px solid var(--accent);
+            padding-left: 20px;
+            margin-bottom: 25px;
+            display: flex; align-items: center;
+            background: linear-gradient(90deg, var(--accent-dim) 0%, transparent 100%);
+        }
+        h2 small { font-size: 1rem; margin-left: 15px; color: var(--accent); font-family: var(--font-ui); letter-spacing: 2px; }
+
+        p, li {
+            font-size: 1rem;
+            line-height: 1.8;
+            color: #222;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        /* --- Navigation --- */
+        .nav-controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            transform: translateZ(40px);
+        }
+        
+        .nav-btn {
+            background: rgba(255,255,255,0.7);
+            border: 1px solid var(--text-main);
+            color: var(--text-main);
+            padding: 10px 20px;
+            font-family: var(--font-ui);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.1s;
+            position: relative;
+            overflow: hidden;
+            font-weight: bold;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
+        }
+        .nav-btn:hover {
+            transform: translate(-2px, -2px) translateZ(10px);
+            box-shadow: 6px 6px 0 var(--accent);
+            color: var(--accent);
+        }
+        .nav-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: translateZ(15px);
+        }
+
+        /* --- Mobile Burger Menu --- */
+        .mobile-menu-toggle {
+            display: none; /* Hidden by default */
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 2000;
+            box-shadow: 0 0 10px var(--accent-glow);
+            font-family: var(--font-ui);
+            clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
+        }
+
+        /* Mobile specific link styling */
+        .nav-btn.mobile-link { display: none; }
+
+        /* --- External Links --- */
+        .external-links {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            transform: translateZ(50px);
+        }
+        .ext-btn {
+            text-decoration: none;
+            color: var(--accent);
+            border: 2px solid var(--accent);
+            padding: 10px 18px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            box-shadow: 0 0 10px rgba(255, 42, 42, 0);
+        }
+        .ext-btn:hover {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: scale(1.1);
+        }
+
+        /* Text Glitch Animation */
+        @keyframes textGlitch {
+            0% { text-shadow: 2px 0 var(--accent-dim), -2px 0 cyan; }
+            2% { text-shadow: -3px 2px var(--accent), 2px -1px cyan; transform: skewX(10deg); }
+            4% { text-shadow: 2px 0 var(--accent-dim), -2px 0 cyan; transform: skewX(0); }
+            100% { text-shadow: 2px 0 var(--accent-dim), -2px 0 cyan; }
+        }
+
+        /* --- Tech/Video Styling --- */
+        .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .tech-item { 
+            border: 1px solid var(--accent); 
+            padding: 15px; 
+            background: rgba(255,255,255,0.9); 
+            transition: transform 0.3s;
+            position: relative;
+        }
+        .tech-item::before {
+            content: ''; position: absolute; top:0; left:0; width: 10px; height: 10px; 
+            border-top: 2px solid var(--accent); border-left: 2px solid var(--accent);
+        }
+        .tech-item::after {
+            content: ''; position: absolute; bottom:0; right:0; width: 10px; height: 10px; 
+            border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent);
+        }
+        .tech-item:hover {
+            transform: translateZ(20px) scale(1.05);
+            box-shadow: 10px 10px 20px rgba(0,0,0,0.15);
+            z-index: 10;
+        }
+        .tech-item h4 { 
+            background: var(--accent); color: white; 
+            display: inline-block; padding: 4px 8px; 
+            font-size: 0.9rem; margin-bottom: 10px; font-weight: bold;
+        }
+        
+        .video-box {
+            width: 100%;
+            border: 2px solid var(--accent);
+            margin: 5px 0; /* Reduced from 20px */
+            position: relative;
+            padding-bottom: 56.25%;
+            background: #000;
+            transform-style: preserve-3d;
+            box-shadow: 0 0 20px var(--accent-dim);
+        }
+        .video-box iframe {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            opacity: 0.8; transition: opacity 0.3s;
+            mix-blend-mode: screen; /* Blends better with CRT effect */
+        }
+        .video-box:hover iframe { opacity: 1; mix-blend-mode: normal; }
+
+        @media (max-width: 768px) {
+            .monitor-frame { height: 90vh; width: 95%; }
+            /* Mobile Menu Styles */
+            .nav-controls {
+                display: none; /* Hide standard nav buttons */
+                flex-direction: column;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) translateZ(100px);
+                background: rgba(255, 255, 255, 0.95);
+                padding: 20px;
+                border: 2px solid var(--accent);
+                z-index: 2001; /* Above everything */
+                width: 80%;
+                box-shadow: 0 0 30px rgba(0,0,0,0.5);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s;
+            }
+            .nav-controls.menu-open {
+                display: flex;
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .mobile-menu-toggle {
+                display: block; /* Show burger button */
+            }
+            
+            /* Show extra links only in mobile menu */
+            .nav-btn.mobile-link { 
+                display: block; 
+                text-decoration: none;
+                text-align: center;
+                margin-top: 15px;
+            }
+            .external-links { display: none; } /* Hide bottom links on mobile */
+            
+            .tech-grid { grid-template-columns: 1fr; }
+            h2 { font-size: 1.5rem; }
+            .crt-screen { padding: 20px; }
+
+            /* --- MOBILE TWEAKS --- */
+            /* Force Video to Top */
+            .video-box { order: -1; margin-bottom: 10px; /* Reduced margin */ }
+            /* Adjust Catch Copy for Single Line */
+            .catch-copy {
+                padding: 10px !important;
+                font-size: 0.95rem !important;
+                white-space: nowrap; /* Force single line */
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- CRT Overlays -->
+    <div class="screen-overlay"></div>
+
+    <!-- BOOT SEQUENCE OVERLAY -->
+    <div id="boot-screen" class="boot-screen">
+        <div class="boot-container">
+            <div class="boot-logo">ZANBARAI</div>
+            <div class="boot-status" id="boot-status-text">INITIALIZING...</div>
+            <div class="boot-progress-bar">
+                <div class="boot-progress-fill" id="boot-progress"></div>
+            </div>
+            <div class="boot-log" id="boot-log">
+                <!-- Logs will be inserted here -->
+            </div>
+            <button id="boot-start-btn" class="boot-start-btn" onclick="requestPermissionAndStart()">TAP TO START</button>
+        </div>
+    </div>
+
+    <div class="monitor-frame" id="holo-frame">
+        <!-- Header Info -->
+        <header class="monitor-header">
+            <div class="header-status">
+                <div>SYSTEM: ONLINE</div>
+                <div>FREQ: 60Hz_NTSC-J</div>
+                <div id="clock">00:00:00</div>
+                <!-- Language Switch -->
+                <div class="lang-toggle" onclick="toggleLanguage()">
+                    LANG: <span id="lang-display">JPN</span>
+                </div>
+            </div>
+            <div class="header-title">
+                <h1 id="main-title">斬祓譚</h1>
+            </div>
+        </header>
+
+        <!-- Main Screen Area -->
+        <div id="screen-display" class="crt-screen">
+            <!-- Flash Overlay for Transition -->
+            <div id="flash-effect" class="flash-overlay"></div>
+
+            <div id="content-container" class="content-scroller">
+                
+                <!-- SECTION 1: OVERVIEW (Split Layout) -->
+                <section id="sec-overview" class="active">
+                    <h2><span data-i18n="overview_title">概要</span> <small>PROJECT OVERVIEW</small></h2>
+                    
+                    <div class="overview-grid">
+                        <div class="overview-text">
+                            <p class="catch-copy" style="font-size: 1.3rem; font-family: var(--font-jp); text-align: center; margin: 40px 0; border: 2px solid var(--accent); padding: 30px; background: rgba(255,255,255,0.7); box-shadow: 5px 5px 0 var(--accent-dim);">
+                                <span data-i18n="overview_catch">「その手で祓え、現世の闇を。」</span>
+                            </p>
+                            <p data-i18n="overview_text">
+                                「斬祓譚　ZNZBARAI CHRONICLE」は、現実空間を背景に襲い来る「人魂（ひとだま）」を、プレイヤー自身の腕を振るって退治する体感型ARアクションゲームです。
+                                最大の特徴は、一般的なタップ操作ではなく、BLE接続された自作グローブ型コントローラ <strong>nIpxel</strong> を用いた直感的な「斬撃」アクションにあります。
+                            </p>
+                        </div>
+                        <div class="video-box">
+                            <iframe src="https://www.youtube.com/embed/QXO62aqQMPM?autoplay=1&mute=1&loop=1&playlist=QXO62aqQMPM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 2: MECHANICS -->
+                <section id="sec-mechanics">
+                    <h2><span data-i18n="mech_title">ゲーム性</span> <small>MECHANICS</small></h2>
+                    <p data-i18n="mech_intro">プレイヤーは陰陽師となり、360度全方位から迫りくる敵（人魂）を迎撃します。</p>
+                    
+                    <h3 style="color:var(--accent); border-bottom:2px dashed var(--accent); margin-top:30px; font-size: 1.2rem;"><span data-i18n="mech_sub1">2.1 コア体験</span></h3>
+                    <ul>
+                        <li><strong data-i18n="mech_search_t">索敵 (Search):</strong> <span data-i18n="mech_search_d">スマートフォンを空間にかざし、AR表示された敵を探します。</span></li>
+                        <li><strong data-i18n="mech_attack_t">攻撃 (Attack):</strong> <span data-i18n="mech_attack_d">グローブコントローラを振ることで「斬撃」を繰り出し、敵を祓います。</span></li>
+                    </ul>
+
+                    <h3 style="color:var(--accent); border-bottom:2px dashed var(--accent); margin-top:30px; font-size: 1.2rem;"><span data-i18n="mech_sub2">2.2 操作システム</span></h3>
+                    <p data-i18n="mech_sys_d">BLEグローブコントローラの加速度・ジャイロセンサを活用。</p>
+                    <ul>
+                        <li><strong data-i18n="mech_slash_t">斬撃:</strong> <span data-i18n="mech_slash_d">腕を鋭く振ることで攻撃判定が発生。</span></li>
+                        <li><strong data-i18n="mech_spell_t">術 (Spell):</strong> <span data-i18n="mech_spell_d">空中に円を描くジェスチャで「札」を発動。</span></li>
+                        <li><strong data-i18n="mech_haptics_t">触覚:</strong> <span data-i18n="mech_haptics_d">斬撃ヒット時にコントローラが振動。</span></li>
+                    </ul>
+                </section>
+
+                <!-- SECTION 3: UI & VISUALS -->
+                <section id="sec-ui">
+                    <h2><span data-i18n="ui_title">UI / 意匠</span> <small>VISUALS</small></h2>
+                    <p data-i18n="ui_intro">「サイバーパンク × 和風ホラー」。伝統的な「和」と、近代的な「グリッチ・ノイズ」を融合。</p>
+                    
+                    <div class="tech-grid">
+                        <div class="tech-item">
+                            <h4 data-i18n="ui_visual_t">視覚効果</h4>
+                            <p data-i18n="ui_visual_d">CRTモニタ風エフェクト、色収差、ノイズ、歪みにより「霊的な視界の不安定さ」を演出。</p>
+                        </div>
+                        <div class="tech-item">
+                            <h4 data-i18n="ui_holo_t">ホログラム</h4>
+                            <p data-i18n="ui_holo_d">「急急如律令」などの呪文を、発光するワイヤーフレーム風ホログラムとして空間に配置。</p>
+                        </div>
+                        <div class="tech-item">
+                            <h4 data-i18n="ui_horror_t">ホラー演出</h4>
+                            <p data-i18n="ui_horror_d">敵の接近時に画面が赤く明滅（Horror Flash）したり、視界が歪む生理的な恐怖煽り。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 4: TECHNICAL -->
+                <section id="sec-tech">
+                    <h2><span data-i18n="tech_title">技術仕様</span> <small>TECHNICAL</small></h2>
+                    
+                    <h3 style="color:var(--accent); margin-bottom:15px; border-left: 4px solid var(--text-main); padding-left: 10px;">Tech Stack</h3>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:30px;">
+                        <span style="border:1px solid var(--accent); padding:4px 10px; font-weight:bold; background:var(--accent); color:white;">HTML5/CSS3</span>
+                        <span style="border:1px solid var(--accent); padding:4px 10px; font-weight:bold;">Three.js</span>
+                        <span style="border:1px solid var(--accent); padding:4px 10px; font-weight:bold;">Web Bluetooth</span>
+                        <span style="border:1px solid var(--accent); padding:4px 10px; font-weight:bold;">Vanilla JS</span>
+                    </div>
+
+                    <div class="tech-grid">
+                        <div class="tech-item">
+                            <h4 data-i18n="tech_arch_t">アーキテクチャ</h4>
+                            <p data-i18n="tech_arch_d">SOLID原則に基づき、AppState, Renderer, CombatSystem等を明確に分離。</p>
+                        </div>
+                        <div class="tech-item">
+                            <h4 data-i18n="tech_ar_t">疑似AR</h4>
+                            <p data-i18n="tech_ar_d">getUserMedia背景 + DeviceOrientationによる視点同期でWeb ARを実現。</p>
+                        </div>
+                        <div class="tech-item">
+                            <h4 data-i18n="tech_sensor_t">センサ処理</h4>
+                            <p data-i18n="tech_sensor_d">15byteのBLEパケットを解析し、単純な閾値ではない高度なジェスチャ認識を実装。</p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+        <!-- Mobile Menu Toggle Button -->
+        <button class="mobile-menu-toggle" onclick="toggleMenu()">
+            ≡ MENU
+        </button>
+
+        <!-- Navigation Controls (Acts as Popup on Mobile) -->
+        <nav class="nav-controls" id="nav-controls">
+            <button class="nav-btn active" onclick="switchChannel('sec-overview', this)" data-i18n="nav_1">01: OVERVIEW</button>
+            <button class="nav-btn" onclick="switchChannel('sec-mechanics', this)" data-i18n="nav_2">02: MECHANICS</button>
+            <button class="nav-btn" onclick="switchChannel('sec-ui', this)" data-i18n="nav_3">03: UI/UX</button>
+            <button class="nav-btn" onclick="switchChannel('sec-tech', this)" data-i18n="nav_4">04: TECHNICAL</button>
+            
+            <!-- Mobile Only Links -->
+            <a href="https://aronmyouji.netlify.app/" target="_blank" class="nav-btn mobile-link" style="color:var(--accent); border-color:var(--accent);" data-i18n="ext_game">⚡ LAUNCH GAME</a>
+            <a href="https://nipxel.netlify.app/" target="_blank" class="nav-btn mobile-link" style="color:var(--accent); border-color:var(--accent);" data-i18n="ext_ctrl">⚙ SETUP CONTROLLER</a>
+
+            <!-- Close button for mobile menu -->
+            <button class="nav-btn" onclick="toggleMenu()" style="margin-top:10px; border-color:var(--accent); color:var(--accent);">CLOSE x</button>
+        </nav>
+
+        <!-- External System Links (PC Only) -->
+        <div class="external-links">
+            <a href="https://aronmyouji.netlify.app/" target="_blank" class="ext-btn">
+                <span data-i18n="ext_game">⚡ LAUNCH GAME [ZANBARAI]</span>
+            </a>
+            <a href="https://nipxel.netlify.app/" target="_blank" class="ext-btn">
+                <span data-i18n="ext_ctrl">⚙ SETUP CONTROLLER [nIpxel]</span>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // --- MULTI-LANGUAGE DATA ---
+        const i18nData = {
+            ja: {
+                header_title: "斬祓譚",
+                overview_title: "概要",
+                overview_catch: "「その手で祓え、現世の闇を。」",
+                overview_text: "「斬祓譚　ZNZBARAI CHRONICLE」は、現実空間を背景に襲い来る「人魂（ひとだま）」を、プレイヤー自身の腕を振るって退治する体感型ARアクションゲームです。<br>最大の特徴は、一般的なタップ操作ではなく、BLE接続された自作グローブ型コントローラ <strong>nIpxel</strong> を用いた直感的な「斬撃」アクションにあります。",
+                mech_title: "ゲーム性",
+                mech_intro: "プレイヤーは陰陽師となり、360度全方位から迫りくる敵（人魂）を迎撃します。",
+                mech_sub1: "2.1 コア体験",
+                mech_search_t: "索敵 (Search):",
+                mech_search_d: "スマートフォンを空間にかざし、AR表示された敵を探します。",
+                mech_attack_t: "攻撃 (Attack):",
+                mech_attack_d: "グローブコントローラを振ることで「斬撃」を繰り出し、敵を祓います。",
+                mech_sub2: "2.2 操作システム",
+                mech_sys_d: "BLEグローブコントローラの加速度・ジャイロセンサを活用。",
+                mech_slash_t: "斬撃:",
+                mech_slash_d: "腕を鋭く振ることで攻撃判定が発生。",
+                mech_spell_t: "術 (Spell):",
+                mech_spell_d: "空中に円を描くジェスチャで「札」を発動。",
+                mech_haptics_t: "触覚:",
+                mech_haptics_d: "斬撃ヒット時にコントローラが振動。",
+                ui_title: "UI / 意匠",
+                ui_intro: "「サイバーパンク × 和風ホラー」。伝統的な「和」と、近代的な「グリッチ・ノイズ」を融合。",
+                ui_visual_t: "視覚効果",
+                ui_visual_d: "CRTモニタ風エフェクト、色収差、ノイズ、歪みにより「霊的な視界の不安定さ」を演出。",
+                ui_holo_t: "ホログラム",
+                ui_holo_d: "「急急如律令」などの呪文を、発光するワイヤーフレーム風ホログラムとして空間に配置。",
+                ui_horror_t: "ホラー演出",
+                ui_horror_d: "敵の接近時に画面が赤く明滅（Horror Flash）したり、視界が歪む生理的な恐怖煽り。",
+                tech_title: "技術仕様",
+                tech_arch_t: "アーキテクチャ",
+                tech_arch_d: "SOLID原則に基づき、AppState, Renderer, CombatSystem等を明確に分離。",
+                tech_ar_t: "疑似AR",
+                tech_ar_d: "getUserMedia背景 + DeviceOrientationによる視点同期でWeb ARを実現。",
+                tech_sensor_t: "センサ処理",
+                tech_sensor_d: "15byteのBLEパケットを解析し、単純な閾値ではない高度なジェスチャ認識を実装。",
+                nav_1: "01: OVERVIEW",
+                nav_2: "02: MECHANICS",
+                nav_3: "03: UI/UX",
+                nav_4: "04: TECHNICAL",
+                ext_game: "⚡ LAUNCH GAME [ZANBARAI]",
+                ext_ctrl: "⚙ SETUP CONTROLLER [nIpxel]"
+            },
+            en: {
+                header_title: "ZANBARAI",
+                overview_title: "OVERVIEW",
+                overview_catch: "\"Purify the darkness of this world with your own hands.\"",
+                overview_text: "\"ZANBARAI CHRONICLE\" is an experiential AR action game where you use your own arms to exorcise 'Hitodama' (human souls) attacking in the real world background.<br>The biggest feature is the intuitive 'Slash' action using the BLE-connected self-made glove controller <strong>nIpxel</strong>, instead of general tap operations.",
+                mech_title: "MECHANICS",
+                mech_intro: "Player becomes an Onmyoji and intercepts enemies (Hitodama) approaching from 360 degrees.",
+                mech_sub1: "2.1 Core Experience",
+                mech_search_t: "Search:",
+                mech_search_d: "Hold up the smartphone to the space to find AR displayed enemies.",
+                mech_attack_t: "Attack:",
+                mech_attack_d: "Swing the glove controller to unleash a 'Slash' and exorcise the enemy.",
+                mech_sub2: "2.2 Control System",
+                mech_sys_d: "Utilizes acceleration and gyro sensors of the BLE glove controller.",
+                mech_slash_t: "Slash:",
+                mech_slash_d: "A sharp swing of the arm generates an attack hitbox.",
+                mech_spell_t: "Spell:",
+                mech_spell_d: "Specific gestures like drawing a circle in the air activate 'Ofuda' (talismans).",
+                mech_haptics_t: "Haptics:",
+                mech_haptics_d: "The controller vibrates upon slash hits.",
+                ui_title: "UI / VISUALS",
+                ui_intro: "\"Cyberpunk x Japanese Horror\". A unique worldview fusing traditional 'Japanese' taste with modern 'Glitch/Noise' expressions.",
+                ui_visual_t: "Visual Effects",
+                ui_visual_d: "CRT monitor style effects, chromatic aberration, noise, and distortion create 'instability of spiritual vision'.",
+                ui_holo_t: "Hologram",
+                ui_holo_d: "Spells like 'Kyukyu Nyoritsuryo' are placed in space as glowing wireframe holograms.",
+                ui_horror_t: "Horror Effects",
+                ui_horror_d: "Screen flashes red or distorts when enemies approach.",
+                tech_title: "TECHNICAL",
+                tech_arch_t: "Architecture",
+                tech_arch_d: "Designed based on SOLID principles separating AppState, Renderer, CombatSystem, etc.",
+                tech_ar_t: "Pseudo-AR",
+                tech_ar_d: "Achieves Web AR using getUserMedia background + DeviceOrientation for viewpoint synchronization.",
+                tech_sensor_t: "Sensor Processing",
+                tech_sensor_d: "Parses 15-byte BLE packets to implement advanced gesture recognition, not just simple thresholds.",
+                nav_1: "01: OVERVIEW",
+                nav_2: "02: MECHANICS",
+                nav_3: "03: UI/UX",
+                nav_4: "04: TECHNICAL",
+                ext_game: "⚡ LAUNCH GAME",
+                ext_ctrl: "⚙ SETUP CONTROLLER"
+            }
+        };
+
+        let currentLang = 'ja';
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'ja' ? 'en' : 'ja';
+            
+            // 1. Update Buttons/Labels
+            document.getElementById('lang-display').innerText = currentLang === 'ja' ? 'JPN' : 'ENG';
+            
+            // 2. Update Content
+            const elements = document.querySelectorAll('[data-i18n]');
+            elements.forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18nData[currentLang][key]) {
+                    el.innerHTML = i18nData[currentLang][key];
+                }
+            });
+
+            // 3. Update Title Font Style (English should be Techno, JP should be Mincho)
+            const titleEl = document.getElementById('main-title');
+            if (currentLang === 'en') {
+                titleEl.style.fontFamily = "var(--font-ui)";
+                titleEl.style.letterSpacing = "0.1em";
+                titleEl.style.fontSize = "3rem";
+            } else {
+                titleEl.style.fontFamily = "var(--font-jp)";
+                titleEl.style.letterSpacing = "0.2em"; // Original spacing
+                titleEl.style.fontSize = "2.5rem"; // Original size
+            }
+        }
+
+        // Clock Update
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('en-US', {hour12: false});
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // 3D Hologram Tilt Logic (Mouse & Gyro)
+        const frame = document.getElementById('holo-frame');
+        
+        // Mouse Move (PC)
+        document.addEventListener('mousemove', (e) => {
+            if (document.getElementById('boot-screen').classList.contains('hidden') && window.innerWidth > 768) {
+                const x = e.clientX;
+                const y = e.clientY;
+                
+                const middleX = window.innerWidth / 2;
+                const middleY = window.innerHeight / 2;
+                
+                const offsetX = ((x - middleX) / middleX) * 12;
+                const offsetY = ((y - middleY) / middleY) * 12;
+
+                frame.style.transform = `rotateY(${offsetX}deg) rotateX(${-offsetY}deg)`;
+            }
+        });
+
+        // Device Orientation (Mobile/Tablet)
+        window.addEventListener('deviceorientation', (e) => {
+            if (document.getElementById('boot-screen').classList.contains('hidden') && window.innerWidth <= 768) {
+                // beta: front-back tilt [-180, 180], gamma: left-right tilt [-90, 90]
+                const tiltX = e.gamma; // Left/Right tilt
+                const tiltY = e.beta;  // Front/Back tilt
+
+                if (tiltX === null || tiltY === null) return;
+
+                // Limit rotation
+                const limit = 20;
+                let rotateY = tiltX;
+                let rotateX = tiltY - 45; // Subtract 45deg as "neutral" holding position
+
+                // Clamp values
+                if (rotateY > limit) rotateY = limit;
+                if (rotateY < -limit) rotateY = -limit;
+                if (rotateX > limit) rotateX = limit;
+                if (rotateX < -limit) rotateX = -limit;
+
+                // Inverted rotation for mobile gesture
+                frame.style.transform = `rotateY(${-rotateY}deg) rotateX(${rotateX}deg)`;
+            }
+        });
+
+
+        document.addEventListener('mouseleave', () => {
+             if (window.innerWidth > 768) {
+                 frame.style.transform = `rotateY(0deg) rotateX(0deg)`;
+             }
+        });
+
+        // Mobile Menu Toggle
+        function toggleMenu() {
+            const nav = document.getElementById('nav-controls');
+            nav.classList.toggle('menu-open');
+        }
+
+        // Channel Switching Logic with Red Tint & Flicker
+        function switchChannel(targetId, btn) {
+            if (btn.classList.contains('active')) return;
+
+            // Close menu on mobile selection
+            if (window.innerWidth <= 768) {
+                toggleMenu();
+            }
+
+            const contentContainer = document.getElementById('content-container');
+            const flash = document.getElementById('flash-effect');
+
+            // 1. Trigger Red-Tinted Flash
+            flash.classList.remove('flash-active');
+            void flash.offsetWidth; // Trigger reflow
+            flash.classList.add('flash-active');
+
+            // 2. Switch Content
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            document.querySelectorAll('section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById(targetId).classList.add('active');
+            
+            contentContainer.scrollTop = 0;
+
+            // 3. Apply Red Analog Stabilization (Warmup + Flicker)
+            contentContainer.classList.remove('analog-stabilize');
+            void contentContainer.offsetWidth; // Reflow
+            contentContainer.classList.add('analog-stabilize');
+        }
+
+        // Start System (Transition from Boot to Main)
+        function startSystem() {
+            const bootScreen = document.getElementById('boot-screen');
+            const monitorFrame = document.getElementById('holo-frame');
+            
+            bootScreen.style.opacity = '0';
+            bootScreen.style.transition = 'opacity 0.5s';
+            
+            setTimeout(() => {
+                bootScreen.classList.add('hidden');
+                monitorFrame.classList.add('visible');
+                
+                const contentContainer = document.getElementById('content-container');
+                const flash = document.getElementById('flash-effect');
+                
+                flash.classList.add('flash-active');
+                contentContainer.classList.add('analog-stabilize');
+            }, 500);
+        }
+
+        // Request Gyro Permission (iOS 13+) and Start
+        function requestPermissionAndStart() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            console.log("DeviceOrientation granted");
+                        } else {
+                            console.warn("DeviceOrientation denied");
+                        }
+                        startSystem();
+                    })
+                    .catch(e => {
+                        console.error(e);
+                        startSystem(); // Start anyway if error
+                    });
+            } else {
+                // Non-iOS 13+ devices
+                startSystem();
+            }
+        }
+
+        // Boot Sequence Logic
+        window.addEventListener('load', () => {
+            const bootFill = document.getElementById('boot-progress');
+            const bootStatus = document.getElementById('boot-status-text');
+            const bootLog = document.getElementById('boot-log');
+            const startBtn = document.getElementById('boot-start-btn');
+
+            const logMessages = [
+                "> BOOT_SEQUENCE_INIT",
+                "> CHECKING_PERIPHERALS... OK",
+                "> LOADING_ASSETS... OK",
+                "> SYNCING_SPIRIT_WAVE... 84%",
+                "> ENCRYPTING_DATA_STREAM...",
+                "> CONNECTING_TO_ZANBARAI_NET...",
+                "> ACCESS_GRANTED"
+            ];
+
+            let progress = 0;
+            let logIndex = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 8; 
+                if (progress > 100) progress = 100;
+                
+                bootFill.style.width = `${progress}%`;
+                bootStatus.innerText = `LOADING... ${Math.floor(progress)}%`;
+
+                if (progress > (logIndex * 15) && logIndex < logMessages.length) {
+                    const span = document.createElement('span');
+                    span.innerText = logMessages[logIndex];
+                    bootLog.prepend(span);
+                    logIndex++;
+                }
+
+                if (progress === 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        bootStatus.innerText = "SYSTEM READY";
+                        bootFill.style.background = "#ff2a2a";
+                        
+                        // Show Start Button instead of auto-start
+                        setTimeout(() => {
+                            startBtn.style.display = 'block';
+                        }, 200);
+                    }, 200);
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>
